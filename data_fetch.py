@@ -5,12 +5,17 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
 # -----------------------------
+# User Input
+# -----------------------------
+tickers = input("Enter tickers separated by spaces (e.g. AAPL MSFT TSLA): ").split()
+start_date = input("Enter start date (YYYY-MM-DD): ") or "2020-01-01"
+
+print(f"\nDownloading data for {tickers} since {start_date}...")
+
+# -----------------------------
 # 1. Download Data
 # -----------------------------
-tickers = ["AAPL", "MSFT", "TSLA"]
-
-# Download daily data since 2020
-data = yf.download(tickers, start="2020-01-01")
+data = yf.download(tickers, start=start_date)
 
 # Extract just the 'Close' prices
 prices = data["Close"]
@@ -18,14 +23,8 @@ prices = data["Close"]
 # Save raw prices to CSV
 prices.to_csv("prices.csv")
 
-print("Price data (first 5 rows):")
+print("\nPrice data (first 5 rows):")
 print(prices.head())
-
-# Plot example chart
-prices["AAPL"].plot(title="AAPL Price History", figsize=(10,6))
-plt.xlabel("Date")
-plt.ylabel("Price ($)")
-plt.show()
 
 # -----------------------------
 # 2. Calculate Returns
@@ -34,18 +33,11 @@ plt.show()
 returns = np.log(prices / prices.shift(1))
 returns = returns.dropna()
 
-print("\nDaily returns (first 5 rows):")
-print(returns.head())
-
-# Mean daily returns and covariance
 mean_returns = returns.mean()
 cov_matrix = returns.cov()
 
 print("\nMean daily returns:")
 print(mean_returns)
-
-print("\nCovariance matrix:")
-print(cov_matrix)
 
 # -----------------------------
 # 3. Portfolio Performance Function
@@ -55,16 +47,6 @@ def portfolio_performance(weights, mean_returns, cov_matrix, risk_free=0.0):
     port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
     sharpe = (port_return - risk_free) / port_vol
     return port_return, port_vol, sharpe
-
-# Test equal weights
-num_assets = len(mean_returns)
-weights = np.array([1/num_assets] * num_assets)
-
-port_return, port_vol, sharpe = portfolio_performance(weights, mean_returns, cov_matrix)
-print("\nExample Portfolio (Equal Weights):")
-print(f"Return: {port_return:.2%}")
-print(f"Volatility: {port_vol:.2%}")
-print(f"Sharpe Ratio: {sharpe:.2f}")
 
 # -----------------------------
 # 4. Monte Carlo Simulation
@@ -83,20 +65,10 @@ def monte_carlo_simulation(num_portfolios, mean_returns, cov_matrix, risk_free=0
     results_df = pd.DataFrame(results, columns=["Return", "Volatility", "Sharpe", "Weights"])
     return results_df
 
-results_df = monte_carlo_simulation(5000, mean_returns, cov_matrix)
+# Generate 20k portfolios for a denser cloud
+results_df = monte_carlo_simulation(20000, mean_returns, cov_matrix)
 
-print("\nSample simulated portfolios:")
-print(results_df.head())
-
-# Plot Monte Carlo portfolios
-plt.figure(figsize=(10,6))
-plt.scatter(results_df["Volatility"], results_df["Return"],
-            c=results_df["Sharpe"], cmap="viridis", alpha=0.7)
-plt.colorbar(label="Sharpe Ratio")
-plt.xlabel("Volatility (Risk)")
-plt.ylabel("Expected Return")
-plt.title("Monte Carlo Portfolio Simulation")
-plt.show()
+print(f"\nSimulated {len(results_df)} random portfolios.")
 
 # -----------------------------
 # 5. Optimization with SciPy
@@ -126,10 +98,38 @@ def optimize_portfolio(mean_returns, cov_matrix, risk_free=0.0):
 
 opt_sharpe, opt_min_vol = optimize_portfolio(mean_returns, cov_matrix)
 
+# -----------------------------
+# 6. Results
+# -----------------------------
+sharpe_ret, sharpe_vol, sharpe_ratio = portfolio_performance(opt_sharpe.x, mean_returns, cov_matrix)
+minvol_ret, minvol_vol, minvol_ratio = portfolio_performance(opt_min_vol.x, mean_returns, cov_matrix)
+
 print("\nMax Sharpe Portfolio:")
-print("Weights:", opt_sharpe.x)
-print("Performance:", portfolio_performance(opt_sharpe.x, mean_returns, cov_matrix))
+print("Weights:", opt_sharpe.x.round(3))
+print(f"Return: {sharpe_ret:.2%}, Volatility: {sharpe_vol:.2%}, Sharpe: {sharpe_ratio:.2f}")
 
 print("\nMin Volatility Portfolio:")
-print("Weights:", opt_min_vol.x)
-print("Performance:", portfolio_performance(opt_min_vol.x, mean_returns, cov_matrix))
+print("Weights:", opt_min_vol.x.round(3))
+print(f"Return: {minvol_ret:.2%}, Volatility: {minvol_vol:.2%}, Sharpe: {minvol_ratio:.2f}")
+
+# -----------------------------
+# 7. Plot Efficient Frontier
+# -----------------------------
+plt.figure(figsize=(10,6))
+
+# Monte Carlo scatter
+plt.scatter(results_df["Volatility"], results_df["Return"],
+            c=results_df["Sharpe"], cmap="viridis", alpha=0.7)
+
+# Highlight Max Sharpe (gold star)
+plt.scatter(sharpe_vol, sharpe_ret, c="gold", marker="*", s=300, label="Max Sharpe")
+
+# Highlight Min Volatility (red star)
+plt.scatter(minvol_vol, minvol_ret, c="red", marker="*", s=300, label="Min Volatility")
+
+plt.colorbar(label="Sharpe Ratio")
+plt.xlabel("Volatility (Risk)")
+plt.ylabel("Expected Return")
+plt.title("Efficient Frontier with Optimal Portfolios")
+plt.legend()
+plt.show()
