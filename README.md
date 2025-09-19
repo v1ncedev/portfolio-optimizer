@@ -20,6 +20,6 @@ It calculates portfolio performance, runs Monte Carlo simulations, and finds the
 ## 🛠 Installation
 Clone the repo and install dependencies:
 ```bash
-git clone https://github.com/YOURUSERNAME/portfolio-optimizer.git
+git clone https://github.com/v1ncedev/portfolio-optimizer.git
 cd portfolio-optimizer
 pip install -r requirements.txt
